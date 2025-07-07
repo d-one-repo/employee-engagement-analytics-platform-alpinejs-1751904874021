@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IKEA Employee Engagement Analytics</title>
+    <!-- Alpine.js CDN -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen" x-data="engagementApp()" x-cloak>
+    <!-- Header -->
+    <header class="bg-blue-700 text-white shadow-md">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <img src="https://logo.clearbit.com/ikea.com" alt="IKEA Logo" class="h-10">
+                <h1 class="text-xl font-bold">Employee Engagement Analytics</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span class="hidden md:inline-block">Welcome, Tiffany Monaco</span>
+                <img src="https://randomuser.me/api/portraits/women/32.jpg" alt="Profile" class="h-8 w-8 rounded-full border-2 border-yellow-400">
+            </div>
+        </div>
+    </header>
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- Dashboard Overview -->
+        <section class="mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Overall Engagement Score -->
+                <div class="bg-white rounded-lg shadow-md p-4 border-l-4 border-blue-500">
+                    <h3 class="text-gray-500 text-sm font-medium">Overall Engagement</h3>
+                    <div class="flex items-end mt-2">
+                        <span class="text-3xl font-bold text-blue-700" x-text="overallScore + '%'"></span>
+                        <span 
+                            class="ml-2 text-sm" 
+                            :class="scoreTrend > 0 ? 'text-green-500' : 'text-red-500'"
+                            x-text="scoreTrend > 0 ? '↑ ' + scoreTrend + '%' : '↓ ' + Math.abs(scoreTrend) + '%'">
+                        </span>
+                    </div>
+                    <p class="text-gray-600 text-sm mt-1">vs. last quarter</p>
+                </div>
+                <!-- Participation Rate -->
+                <div class="bg-white rounded-lg shadow-md p-4 border-l-4 border-green-500">
+                    <h3 class="text-gray-500 text-sm font-medium">Participation Rate</h3>
+                    <div class="flex items-end mt-2">
+                        <span class="text-3xl font-bold text-green-600" x-text="participationRate + '%'"></span>
+                        <span class="ml-2 text-sm text-green-500">↑ 5%</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mt-1">8,432 of 9,650 employees</p>
+                </div>
+                <!-- eNPS Score -->
+                <div class="bg-white rounded-lg shadow-md p-4 border-l-4 border-purple-500">
+                    <h3 class="text-gray-500 text-sm font-medium">eNPS Score</h3>
+                    <div class="flex items-end mt-2">
+                        <span class="text-3xl font-bold text-purple-600" x-text="eNPSScore"></span>
+                        <span class="ml-2 text-sm text-green-500">↑ 4</span>
+                    </div>
+                    <p class="text-gray-600 text-sm mt-1">42% promoters, 18% detractors</p>
+                </div>
+                <!-- Pending Actions -->
+                <div class="bg-white rounded-lg shadow-md p-4 border-l-4 border-yellow-500">
+                    <h3 class="text-gray-500 text-sm font-medium">Pending Actions</h3>
+                    <div class="flex items-end mt-2">
+                        <span class="text-3xl font-bold text-yellow-600" x-text="pendingActions"></span>
+                    </div>
+                    <p class="text-gray-600 text-sm mt-1">Requires your attention</p>
+                </div>
+            </div>
+        </section>
+        <!-- Engagement Trends -->
+        <section class="mb-8 bg-white rounded-lg shadow-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-800">Engagement Trends</h2>
+                <div class="flex space-x-2">
+                    <button 
+                        @click="timeframe = 'quarterly'" 
+                        :class="timeframe === 'quarterly' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'" 
+                        class="px-3 py-1 rounded text-sm font-medium">
+                        Quarterly
+                    </button>
+                    <button 
+                        @click="timeframe = 'yearly'" 
+                        :class="timeframe === 'yearly' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'" 
+                        class="px-3 py-1 rounded text-sm font-medium">
+                        Yearly
+                    </button>
+                </div>
+            </div>
+            <div class="h-64">
+                <canvas id="engagementTrend"></canvas>
+            </div>
+        </section>
+        <!-- Key Metrics and Feedback -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Key Metrics -->
+            <section class="lg:col-span-2 bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Key Engagement Metrics</h2>
+                <div class="space-y-4">
+                    <template x-for="(metric, index) in engagementMetrics" :key="index">
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-sm font-medium text-gray-700" x-text="metric.name"></span>
+                                <span class="text-sm font-medium text-gray-700" x-text="metric.score + '%'"></span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div 
+                                    class="h-2.5 rounded-full transition-all duration-500" 
+                                    :class="getMetricColorClass(metric.score)"
+                                    :style="`width: ${metric.score}%`">
+                                </div>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span x-text="metric.change > 0 ? '↑ ' + metric.change + '%' : '↓ ' + Math.abs(metric.change) + '%'"
+                                      :class="metric.change > 0 ? 'text-green-500' : 'text-red-500'"></span>
+                                <span x-text="metric.benchmark ? 'Industry benchmark: ' + metric.benchmark + '%' : ''"></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </section>
+            <!-- Recent Feedback -->
+            <section class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Recent Feedback</h2>
+                <div class="space-y-4 max-h-96 overflow-y-auto">
+                    <template x-for="(feedback, index) in recentFeedback" :key="index">
+                        <div class="p-3 rounded-lg" :class="feedback.sentiment === 'positive' ? 'bg-green-50' : feedback.sentiment === 'negative' ? 'bg-red-50' : 'bg-gray-50'">
+                            <div class="flex justify-between items-start">
+                                <p class="text-sm text-gray-800" x-text="feedback.comment"></p>
+                                <span class="text-xs font-medium rounded-full px-2 py-0.5" 
+                                      :class="feedback.sentiment === 'positive' ? 'bg-green-100 text-green-800' : feedback.sentiment === 'negative' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'"
+                                      x-text="feedback.sentiment.charAt(0).toUpperCase() + feedback.sentiment.slice(1)"></span>
+                            </div>
+                            <div class="flex justify-between items-center mt-2 text-xs text-gray-500">
+                                <span x-text="feedback.department"></span>
+                                <span x-text="feedback.date"></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </section>
+        </div>
+        <!-- Action Center -->
+        <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Action Center</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Recommended Actions -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-700 mb-3">Recommended Actions</h3>
+                    <ul class="space-y-3">
+                        <template x-for="(action, index) in recommendedActions" :key="index">
+                            <li class="flex items-start p-3 border border-gray-200 rounded-lg hover:bg-blue-50 transition-colors">
+                                <div class="flex-shrink-0 mr-3">
+                                    <span class="inline-flex items-center justify-center h-8 w-8 rounded-full" :class="action.priority === 'high' ? 'bg-red-100 text-red-500' : action.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' : 'bg-blue-100 text-blue-500'">
+                                        <template x-if="action.priority === 'high'">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                            </svg>
+                                        </template>
+                                        <template x-if="action.priority === 'medium'">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                            </svg>
+                                        </template>
+                                        <template x-if="action.priority === 'low'">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        </template>
+                                    </span>
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-800" x-text="action.title"></h4>
+                                    <p class="text-xs text-gray-600 mt-1" x-text="action.description"></p>
+                                    <div class="mt-2 flex items-center">
+                                        <span class="text-xs font-medium text-gray-500 mr-2" x-text="'Impact: ' + action.impact"></span>
+                                        <span class="text-xs font-medium px-2 py-0.5 rounded-full" 
+                                              :class="action.priority === 'high' ? 'bg-red-100 text-red-800' : action.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'"
+                                              x-text="action.priority.charAt(0).toUpperCase() + action.priority.slice(1) + ' Priority'"></span>
+                                    </div>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+                <!-- Pulse Survey -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-700 mb-3">Quick Pulse Survey</h3>
+                    <div class="p-4 border border-gray-200 rounded-lg">
+                        <template x-if="!surveySubmitted">
+                            <div>
+                                <p class="text-sm text-gray-600 mb-4">Create a quick pulse survey to gather immediate feedback on a specific topic.</p>
+                                <div class="mb-4">
+                                    <label for="surveyTopic" class="block text-sm font-medium text-gray-700 mb-1">Survey Topic</label>
+                                    <select id="surveyTopic" x-model="newSurvey.topic" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                                        <option value="">Select a topic</option>
+                                        <option value="Work Environment">Work Environment</option>
+                                        <option value="Management Effectiveness">Management Effectiveness</option>
+                                        <option value="Sustainability Initiatives">Sustainability Initiatives</option>
+                                        <option value="Work-Life Balance">Work-Life Balance</option>
+                                        <option value="Career Development">Career Development</option>
+                                    </select>
+                                </div>
+                                <div class="mb-4">
+                                    <label for="surveyQuestion" class="block text-sm font-medium text-gray-700 mb-1">Main Question</label>
+                                    <input type="text" id="surveyQuestion" x-model="newSurvey.question" placeholder="Enter your question here" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                                <div class="mb-4">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Target Audience</label>
+                                    <div class="flex flex-wrap gap-2">
+                                        <template x-for="(dept, index) in departments" :key="index">
+                                            <div 
+                                                @click="toggleDepartment(dept)"
+                                                :class="newSurvey.departments.includes(dept) ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-gray-100 border-gray-300 text-gray-800'"
+                                                class="cursor-pointer text-xs px-2 py-1 rounded-md border">
+                                                <span x-text="dept"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div class="flex justify-end">
+                                    <button 
+                                        @click="submitSurvey"
+                                        :disabled="!newSurvey.topic || !newSurvey.question || newSurvey.departments.length === 0"
+                                        :class="(!newSurvey.topic || !newSurvey.question || newSurvey.departments.length === 0) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'"
+                                        class="px-4 py-2 text-white font-medium rounded-md">
+                                        Create Survey
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="surveySubmitted">
+                            <div class="text-center py-4 fade-in">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-green-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <h4 class="text-lg font-medium text-gray-800 mb-2">Survey Created!</h4>
+                                <p class="text-sm text-gray-600 mb-4">Your pulse survey has been sent to <span class="font-medium" x-text="newSurvey.departments.length"></span> departments.</p>
+                                <button @click="resetSurvey" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Create Another Survey</button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- Department Breakdown -->
+        <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-800">Department Breakdown</h2>
+                <div>
+                    <select x-model="selectedMetric" class="text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50">
+                        <option value="engagement">Engagement Score</option>
+                        <option value="satisfaction">Satisfaction</option>
+                        <option value="participation">Participation Rate</option>
+                        <option value="enps">eNPS</option>
+                    </select>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Change</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trend</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="(dept, index) in departmentData" :key="index">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="text-sm font-medium text-gray-900" x-text="dept.name"></div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium" 
+                                         :class="getDepartmentScoreColor(dept[selectedMetric])"
+                                         x-text="selectedMetric === 'enps' ? dept[selectedMetric] : dept[selectedMetric] + '%'"></div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm" 
+                                         :class="dept.change > 0 ? 'text-green-600' : dept.change < 0 ? 'text-red-600' : 'text-gray-500'"
+                                         x-text="dept.change > 0 ? '↑ ' + dept.change + '%' : dept.change < 0 ? '↓ ' + Math.abs(dept.change) + '%' : 'No change'"></div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="w-24 h-6">
+                                        <canvas :id="'trend-' + dept.id"></canvas>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" 
+                                          :class="getDepartmentStatusColor(dept.status)"
+                                          x-text="dept.status"></span>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+    <!-- Footer -->
+    <footer class="bg-gray-100 border-t border-gray-200 py-4">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="flex items-center mb-4 md:mb-0">
+                    <img src="https://logo.clearbit.com/ikea.com" alt="IKEA Logo" class="h-8 mr-3">
+                    <span class="text-gray-600 text-sm">© 2023 IKEA Employee Engagement Platform</span>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="#" class="text-gray-600 hover:text-blue-600 text-sm">Privacy Policy</a>
+                    <a href="#" class="text-gray-600 hover:text-blue-600 text-sm">Terms of Use</a>
+                    <a href="#" class="text-gray-600 hover:text-blue-600 text-sm">Help Center</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+    <script>
+        function engagementApp() {
+            return {
+                overallScore: 78,
+                scoreTrend: 3,
+                participationRate: 87,
+                eNPSScore: 24,
+                pendingActions: 7,
+                timeframe: 'quarterly',
+                selectedMetric: 'engagement',
+                surveySubmitted: false,
+                newSurvey: {
+                    topic: '',
+                    question: '',
+                    departments: []
+                },
+                departments: [
+                    'Sales', 'Customer Service', 'Logistics', 'Marketing', 
+                    'HR', 'Product Development', 'IT', 'Finance'
+                ],
+                engagementMetrics: [
+                    { name: 'Work Environment', score: 82, change: 4, benchmark: 75 },
+                    { name: 'Management & Leadership', score: 74, change: 2, benchmark: 70 },
+                    { name: 'Compensation & Benefits', score: 68, change: -2, benchmark: 72 },
+                    { name: 'Career Growth', score: 65, change: 5, benchmark: 68 },
+                    { name: 'Work-Life Balance', score: 79, change: 3, benchmark: 73 },
+                    { name: 'Company Values & Culture', score: 85, change: 6, benchmark: 77 }
+                ],
+                recentFeedback: [
+                    { 
+                        comment: "The new sustainability training program has been very insightful. I feel more equipped to contribute to our eco-friendly initiatives.", 
+                        sentiment: "positive", 
+                        department: "Sales", 
+                        date: "2 days ago" 
+                    },
+                    { 
+                        comment: "Our team meetings are too frequent and often run over time. This affects my productivity.", 
+                        sentiment: "negative", 
+                        department: "IT", 
+                        date: "3 days ago" 
+                    },
+                    { 
+                        comment: "The flexible work hours have greatly improved my work-life balance.", 
+                        sentiment: "positive", 
+                        department: "Marketing", 
+                        date: "5 days ago" 
+                    },
+                    { 
+                        comment: "I appreciate the recent town hall where leadership shared the company's vision for sustainable product development.", 
+                        sentiment: "positive", 
+                        department: "Product Development", 
+                        date: "1 week ago" 
+                    },
+                    { 
+                        comment: "The new inventory management system is difficult to use and slows down our processes.", 
+                        sentiment: "negative", 
+                        department: "Logistics", 
+                        date: "1 week ago" 
+                    },
+                    { 
+                        comment: "I'm neutral about the recent office layout changes. Some aspects work well, others don't.", 
+                        sentiment: "neutral", 
+                        department: "Customer Service", 
+                        date: "2 weeks ago" 
+                    }
+                ],
+                recommendedActions: [
+                    {
+                        title: "Address Compensation Concerns",
+                        description: "Recent feedback indicates growing dissatisfaction with compensation packages, particularly in IT and Logistics departments.",
+                        impact: "High",
+                        priority: "high"
+                    },
+                    {
+                        title: "Expand Sustainability Training",
+                        description: "Positive feedback on sustainability training suggests opportunity to expand program to all departments.",
+                        impact: "Medium",
+                        priority: "medium"
+                    },
+                    {
+                        title: "Review Meeting Efficiency",
+                        description: "Multiple comments about meeting frequency and duration affecting productivity.",
+                        impact: "Medium",
+                        priority: "medium"
+                    },
+                    {
+                        title: "Improve Inventory System UX",
+                        description: "Logistics team reports difficulties with the new inventory management system interface.",
+                        impact: "Medium",
+                        priority: "low"
+                    }
+                ],
+                departmentData: [
+                    { id: 1, name: "Sales", engagement: 81, satisfaction: 78, participation: 92, enps: 28, change: 4, status: "Strong", trend: [75, 77, 79, 81] },
+                    { id: 2, name: "Customer Service", engagement: 76, satisfaction: 72, participation: 88, enps: 22, change: 2, status: "Good", trend: [72, 75, 73, 76] },
+                    { id: 3, name: "Logistics", engagement: 68, satisfaction: 65, participation: 82, enps: 12, change: -3, status: "At Risk", trend: [72, 70, 71, 68] },
+                    { id: 4, name: "Marketing", engagement: 84, satisfaction: 82, participation: 95, enps: 32, change: 6, status: "Strong", trend: [76, 79, 82, 84] },
+                    { id: 5, name: "HR", engagement: 82, satisfaction: 80, participation: 96, enps: 30, change: 3, status: "Strong", trend: [78, 80, 81, 82] },
+                    { id: 6, name: "Product Development", engagement: 79, satisfaction: 76, participation: 90, enps: 26, change: 5, status: "Good", trend: [72, 75, 77, 79] },
+                    { id:
